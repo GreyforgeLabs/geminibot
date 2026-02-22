@@ -1,0 +1,1 @@
+Gemini Bot goes open source and free. Remotely control a Gemini terminal UI from anywhere; self-hosted, zero-config, out-of-the-box. Docs on GitHub; PRs welcome. Join the Build-in-Public journey. #opensource #GeminiBot #OpenSource #RemoteDev
