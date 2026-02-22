@@ -38,7 +38,7 @@ async function processQueue() {
   const { chat_id, text } = queue.shift();
 
   try {
-    console.log(`[${new Date().toLocaleTimeString()}] Executing: ${text}`);
+    console.log(`\n[${new Date().toLocaleTimeString()}] Executing: ${text}`);
     await api('sendChatAction', { chat_id, action: 'typing' });
     let status = await api('sendMessage', { chat_id, text: '⏳ Solon is thinking...' });
     let status_id = status?.result?.message_id;
@@ -126,20 +126,36 @@ async function handle(u) {
   const chat_id = msg.chat.id;
   if (msg.from.id !== AUTH_ID) return;
 
-  // Document Upload Handling
+  let fileNotification = "";
+
+  // 1. Photo/Document Handling (Multimodal)
+  let file_id = null;
+  let fileName = null;
+
   if (msg.document) {
-    const file = await api('getFile', { file_id: msg.document.file_id });
+    file_id = msg.document.file_id;
+    fileName = msg.document.file_name || 'uploaded_file';
+  } else if (msg.photo) {
+    file_id = msg.photo[msg.photo.length - 1].file_id;
+    fileName = `photo_${Date.now()}.jpg`;
+  }
+
+  if (file_id) {
+    const file = await api('getFile', { file_id });
     if (file?.ok) {
-      const fileName = msg.document.file_name || 'uploaded_file';
       const filePath = path.join(WORKSPACE_DIR, fileName);
       const res = await fetch(`${FILE_URL}/${file.result.file_path}`);
       const buffer = await res.arrayBuffer();
       await fs.writeFile(filePath, Buffer.from(buffer));
-      return api('sendMessage', { chat_id, text: `📥 Saved \`${fileName}\` to workspace.` });
+      fileNotification = `📥 File \`${fileName}\` saved to workspace. `;
+      console.log(`[FILE] Saved: ${fileName}`);
     }
   }
 
-  const text = msg.text;
+  const text = msg.text || msg.caption || "";
+  if (fileNotification && !text) {
+    return api('sendMessage', { chat_id, text: fileNotification, parse_mode: 'Markdown' });
+  }
   if (!text) return;
 
   // Administrative Commands
@@ -156,13 +172,14 @@ async function handle(u) {
   }
 
   // Push standard messages to queue
-  queue.push({ chat_id, text });
+  const finalPrompt = fileNotification ? `${fileNotification}\nUser Request: ${text}` : text;
+  queue.push({ chat_id, text: finalPrompt });
   processQueue();
 }
 
 async function poll() {
   let offset = 0;
-  console.log("Gemini Telegram Bridge Active (v5)");
+  console.log("Gemini Telegram Bridge Active (v7 - Multimodal)");
   while (true) {
     try {
       const res = await api('getUpdates', { offset, timeout: 30 });
