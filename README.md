@@ -1,7 +1,7 @@
-# Gemini Telegram Bridge (v7)
+# Gemini Telegram Bridge (v8)
 
 <p align="center">
-  <img src="logo.jpg" alt="Solon Logo" width="400">
+  <img src="banner.jpg" alt="Solon Banner" width="600">
 </p>
 
 A high-performance Node.js bridge to remote control `gemini-cli` via Telegram. 
