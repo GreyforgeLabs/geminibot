@@ -1,3 +1,11 @@
+<div align="center">
+
+**[Greyforge Labs](https://greyforge.tech)** &nbsp;·&nbsp; [OpenForge](https://greyforge.tech/openforge) &nbsp;·&nbsp; [Chronicle](https://greyforge.tech/chronicles/solon-gemini-telegram-bridge) &nbsp;·&nbsp; [GitHub](https://github.com/GreyforgeLabs/geminibot)
+
+</div>
+
+---
+
 # Gemini Telegram Bridge (v8)
 
 <p align="center">
@@ -42,3 +50,11 @@ To view the live bridge log:
 ```bash
 tmux attach -t geminibot
 ```
+
+---
+
+<div align="center">
+
+Built by **[Greyforge Labs](https://greyforge.tech)** &nbsp;·&nbsp; [OpenForge](https://greyforge.tech/openforge) &nbsp;·&nbsp; [Chronicle](https://greyforge.tech/chronicles/solon-gemini-telegram-bridge)
+
+</div>
