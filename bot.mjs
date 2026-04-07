@@ -1,4 +1,4 @@
-import { spawn, execSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 
@@ -120,6 +120,14 @@ async function processQueue() {
   }
 }
 
+async function readRecentLogs(logPath, lines = 20) {
+  const maxLines = Math.max(1, Math.min(lines, 200));
+  const resolved = path.resolve(WORKSPACE_DIR, logPath);
+  const contents = await fs.readFile(resolved, 'utf8');
+  const rows = contents.replace(/\r?\n$/, '').split(/\r?\n/);
+  return rows.slice(-maxLines).join('\n');
+}
+
 async function handle(u) {
   const msg = u.message || u.edited_message;
   if (!msg) return;
@@ -162,9 +170,11 @@ async function handle(u) {
   if (text.startsWith('/')) {
     if (text === '/logs') {
       try {
-        const logs = execSync(`tail -n 20 ${BRIDGE_LOG}`).toString();
+        const logs = await readRecentLogs(BRIDGE_LOG, 20);
         return api('sendMessage', { chat_id, text: `📝 Logs:\n\`\`\`\n${logs}\`\`\``, parse_mode: 'Markdown' });
-      } catch (e) { return api('sendMessage', { chat_id, text: 'Error reading logs.' }); }
+      } catch (e) {
+        return api('sendMessage', { chat_id, text: 'Error reading logs.' });
+      }
     }
     if (text === '/status') {
       return api('sendMessage', { chat_id, text: processing ? '⚡ Processing command...' : '✅ Idle.' });
