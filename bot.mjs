@@ -8,6 +8,8 @@ const AUTH_ID = parseInt(process.env.AUTHORIZED_USER_ID, 10);
 const SESSION_ID = process.env.GEMINI_SESSION_ID;
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd();
 const BRIDGE_LOG = process.env.BRIDGE_LOG_PATH || './bot.log';
+const MAX_QUEUE_SIZE = 20;
+const GEMINI_TIMEOUT_MS = 5 * 60_000;
 
 if (!TOKEN || !AUTH_ID || !SESSION_ID) {
   console.error("Error: Missing environment variables TELEGRAM_TOKEN, AUTHORIZED_USER_ID, or GEMINI_SESSION_ID.");
@@ -51,7 +53,17 @@ async function processQueue() {
     ], { 
       cwd: WORKSPACE_DIR, 
       env: { ...process.env, TERM: 'xterm-256color' },
-      timeout: 300000 // 5 minute hard timeout
+    });
+
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+    }, GEMINI_TIMEOUT_MS);
+
+    child.on('error', (err) => {
+      clearTimeout(timeout);
+      console.error('Child process error:', err);
+      processing = false;
+      processQueue();
     });
 
     let fullResponse = '';
@@ -95,6 +107,7 @@ async function processQueue() {
     });
 
     child.on('close', async (code) => {
+      clearTimeout(timeout);
       if (status_id) await api('deleteMessage', { chat_id, message_id: status_id });
       
       if (fullResponse.trim()) {
@@ -103,12 +116,6 @@ async function processQueue() {
       } else {
         await api('sendMessage', { chat_id, text: code === 0 ? '✅ Done.' : `❌ Error (code ${code})` });
       }
-      processing = false;
-      processQueue();
-    });
-
-    child.on('error', (err) => {
-      console.error('Child process error:', err);
       processing = false;
       processQueue();
     });
@@ -126,6 +133,11 @@ async function readRecentLogs(logPath, lines = 20) {
   const contents = await fs.readFile(resolved, 'utf8');
   const rows = contents.replace(/\r?\n$/, '').split(/\r?\n/);
   return rows.slice(-maxLines).join('\n');
+}
+
+function sanitizeFileName(fileName) {
+  const base = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+  return base || 'uploaded_file';
 }
 
 async function handle(u) {
@@ -151,7 +163,8 @@ async function handle(u) {
   if (file_id) {
     const file = await api('getFile', { file_id });
     if (file?.ok) {
-      const filePath = path.join(WORKSPACE_DIR, fileName);
+      const safeName = sanitizeFileName(fileName ?? 'uploaded_file');
+      const filePath = path.join(WORKSPACE_DIR, safeName);
       const res = await fetch(`${FILE_URL}/${file.result.file_path}`);
       const buffer = await res.arrayBuffer();
       await fs.writeFile(filePath, Buffer.from(buffer));
@@ -183,6 +196,10 @@ async function handle(u) {
 
   // Push standard messages to queue
   const finalPrompt = fileNotification ? `${fileNotification}\nUser Request: ${text}` : text;
+  if (queue.length >= MAX_QUEUE_SIZE) {
+    console.warn('[GeminiBot] Queue full — request discarded');
+    return api('sendMessage', { chat_id, text: '⚠️ Queue is full, try again shortly.' });
+  }
   queue.push({ chat_id, text: finalPrompt });
   processQueue();
 }
