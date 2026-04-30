@@ -9,7 +9,7 @@
 # Gemini Telegram Bridge (v8)
 
 <p align="center">
-  <img src="banner.jpg" alt="Solon Banner" width="600">
+  <img src="docs/assets/openforge-solon.webp" alt="Solon OpenForge project artwork" width="720">
 </p>
 
 A high-performance Node.js bridge to remote control `gemini-cli` via Telegram. 
