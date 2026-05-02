@@ -8,11 +8,17 @@ const AUTH_ID = parseInt(process.env.AUTHORIZED_USER_ID, 10);
 const SESSION_ID = process.env.GEMINI_SESSION_ID;
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd();
 const BRIDGE_LOG = process.env.BRIDGE_LOG_PATH || './bot.log';
+const GEMINI_APPROVAL_MODE = process.env.GEMINI_APPROVAL_MODE || 'default';
+const MAX_UPLOAD_BYTES = parseInt(process.env.MAX_UPLOAD_BYTES || String(10 * 1024 * 1024), 10);
 const MAX_QUEUE_SIZE = 20;
 const GEMINI_TIMEOUT_MS = 5 * 60_000;
 
-if (!TOKEN || !AUTH_ID || !SESSION_ID) {
+if (!TOKEN || !Number.isInteger(AUTH_ID) || !SESSION_ID) {
   console.error("Error: Missing environment variables TELEGRAM_TOKEN, AUTHORIZED_USER_ID, or GEMINI_SESSION_ID.");
+  process.exit(1);
+}
+if (!/^[a-z0-9_-]+$/i.test(GEMINI_APPROVAL_MODE)) {
+  console.error("Error: GEMINI_APPROVAL_MODE must be a single safe mode token.");
   process.exit(1);
 }
 
@@ -48,7 +54,7 @@ async function processQueue() {
     const child = spawn('gemini', [
       '--prompt', text,
       '--resume', SESSION_ID,
-      '--approval-mode', 'yolo',
+      '--approval-mode', GEMINI_APPROVAL_MODE,
       '--output-format', 'stream-json'
     ], { 
       cwd: WORKSPACE_DIR, 
@@ -140,6 +146,26 @@ function sanitizeFileName(fileName) {
   return base || 'uploaded_file';
 }
 
+function workspaceFilePath(fileName) {
+  const workspaceRoot = path.resolve(WORKSPACE_DIR);
+  const resolved = path.resolve(workspaceRoot, sanitizeFileName(fileName));
+  if (!resolved.startsWith(workspaceRoot + path.sep)) {
+    throw new Error('Resolved file path escaped workspace');
+  }
+  return resolved;
+}
+
+async function availableWorkspaceFilePath(fileName) {
+  const initial = workspaceFilePath(fileName);
+  try {
+    await fs.access(initial);
+  } catch {
+    return initial;
+  }
+  const parsed = path.parse(initial);
+  return path.join(parsed.dir, `${parsed.name}_${Date.now()}${parsed.ext}`);
+}
+
 async function handle(u) {
   const msg = u.message || u.edited_message;
   if (!msg) return;
@@ -155,19 +181,35 @@ async function handle(u) {
   if (msg.document) {
     file_id = msg.document.file_id;
     fileName = msg.document.file_name || 'uploaded_file';
+    if (Number.isFinite(msg.document.file_size) && msg.document.file_size > MAX_UPLOAD_BYTES) {
+      return api('sendMessage', { chat_id, text: `Upload rejected: file exceeds ${MAX_UPLOAD_BYTES} bytes.` });
+    }
   } else if (msg.photo) {
-    file_id = msg.photo[msg.photo.length - 1].file_id;
+    const photo = msg.photo[msg.photo.length - 1];
+    file_id = photo.file_id;
     fileName = `photo_${Date.now()}.jpg`;
+    if (Number.isFinite(photo.file_size) && photo.file_size > MAX_UPLOAD_BYTES) {
+      return api('sendMessage', { chat_id, text: `Upload rejected: image exceeds ${MAX_UPLOAD_BYTES} bytes.` });
+    }
   }
 
   if (file_id) {
     const file = await api('getFile', { file_id });
     if (file?.ok) {
-      const safeName = sanitizeFileName(fileName ?? 'uploaded_file');
-      const filePath = path.join(WORKSPACE_DIR, safeName);
+      const filePath = await availableWorkspaceFilePath(fileName ?? 'uploaded_file');
       const res = await fetch(`${FILE_URL}/${file.result.file_path}`);
-      const buffer = await res.arrayBuffer();
-      await fs.writeFile(filePath, Buffer.from(buffer));
+      if (!res.ok) {
+        return api('sendMessage', { chat_id, text: 'Upload download failed.' });
+      }
+      const contentLength = Number(res.headers.get('content-length') || 0);
+      if (Number.isFinite(contentLength) && contentLength > MAX_UPLOAD_BYTES) {
+        return api('sendMessage', { chat_id, text: `Upload rejected: file exceeds ${MAX_UPLOAD_BYTES} bytes.` });
+      }
+      const buffer = Buffer.from(await res.arrayBuffer());
+      if (buffer.byteLength > MAX_UPLOAD_BYTES) {
+        return api('sendMessage', { chat_id, text: `Upload rejected: file exceeds ${MAX_UPLOAD_BYTES} bytes.` });
+      }
+      await fs.writeFile(filePath, buffer, { flag: 'wx' });
       fileNotification = `📥 File \`${fileName}\` saved to workspace. `;
       console.log(`[FILE] Saved: ${fileName}`);
     }

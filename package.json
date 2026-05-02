@@ -1,0 +1,15 @@
+{
+  "name": "geminibot",
+  "version": "0.1.0",
+  "description": "Telegram bridge for remote gemini-cli sessions.",
+  "type": "module",
+  "main": "bot.mjs",
+  "scripts": {
+    "start": "node bot.mjs",
+    "test": "node --check bot.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "AGPL-3.0-only"
+}

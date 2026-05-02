@@ -34,12 +34,18 @@ A high-performance Node.js bridge to remote control `gemini-cli` via Telegram.
    - `AUTHORIZED_USER_ID`: Your numeric Telegram ID (use @userinfobot).
    - `GEMINI_SESSION_ID`: The UUID of the session you want to resume.
    - `WORKSPACE_DIR`: Absolute path to your Gemini project directory.
+   - `GEMINI_APPROVAL_MODE`: Approval mode passed to `gemini-cli`. Defaults to `default`.
+   - `MAX_UPLOAD_BYTES`: Maximum Telegram file download size. Defaults to 10 MiB.
    - `BRIDGE_LOG_PATH`: (Optional) Path to where you want logs stored.
 
 3. **Run:**
    ```bash
    node bot.mjs
    ```
+
+## Safety Defaults
+
+GeminiBot only accepts messages from `AUTHORIZED_USER_ID`, writes uploads inside `WORKSPACE_DIR`, refuses oversized uploads, and defaults `gemini-cli` approval mode to `default`. Set `GEMINI_APPROVAL_MODE=yolo` only when the workspace and Telegram account are both intentionally dedicated to remote command execution.
 
 ## Running in Background
 Use `tmux` for a persistent session:
