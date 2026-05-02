@@ -14,7 +14,7 @@
 
 A high-performance Node.js bridge to remote control `gemini-cli` via Telegram. 
 
-## New in v7
+## New in v8
 - **Multimodal Support:** Send photos directly to the bot; Solon saves them and handles your caption as a request.
 - **Improved Streaming:** Debounced real-time message updates.
 - **Robust Queuing:** Sequential processing prevents session collisions.
@@ -22,7 +22,7 @@ A high-performance Node.js bridge to remote control `gemini-cli` via Telegram.
 ## Features
 - Remote access to your local Gemini sessions.
 - Secure access restricted to a specific Telegram User ID.
-- Supports `gemini-cli` tool execution via YOLO mode.
+- Supports configurable `gemini-cli` approval mode.
 - Persistent sessions and context awareness.
 
 ## Setup

@@ -4,21 +4,26 @@ import * as path from 'node:path';
 
 // --- CONFIGURATION (Environment Variables) ---
 const TOKEN = process.env.TELEGRAM_TOKEN;
-const AUTH_ID = parseInt(process.env.AUTHORIZED_USER_ID, 10);
+const AUTHORIZED_USER_ID = process.env.AUTHORIZED_USER_ID;
+const AUTH_ID = Number(AUTHORIZED_USER_ID);
 const SESSION_ID = process.env.GEMINI_SESSION_ID;
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd();
 const BRIDGE_LOG = process.env.BRIDGE_LOG_PATH || './bot.log';
 const GEMINI_APPROVAL_MODE = process.env.GEMINI_APPROVAL_MODE || 'default';
-const MAX_UPLOAD_BYTES = parseInt(process.env.MAX_UPLOAD_BYTES || String(10 * 1024 * 1024), 10);
+const MAX_UPLOAD_BYTES = Number(process.env.MAX_UPLOAD_BYTES || String(10 * 1024 * 1024));
 const MAX_QUEUE_SIZE = 20;
 const GEMINI_TIMEOUT_MS = 5 * 60_000;
 
-if (!TOKEN || !Number.isInteger(AUTH_ID) || !SESSION_ID) {
+if (!TOKEN || !/^\d+$/.test(AUTHORIZED_USER_ID ?? '') || !Number.isSafeInteger(AUTH_ID) || !SESSION_ID) {
   console.error("Error: Missing environment variables TELEGRAM_TOKEN, AUTHORIZED_USER_ID, or GEMINI_SESSION_ID.");
   process.exit(1);
 }
 if (!/^[a-z0-9_-]+$/i.test(GEMINI_APPROVAL_MODE)) {
   console.error("Error: GEMINI_APPROVAL_MODE must be a single safe mode token.");
+  process.exit(1);
+}
+if (!Number.isSafeInteger(MAX_UPLOAD_BYTES) || MAX_UPLOAD_BYTES <= 0) {
+  console.error("Error: MAX_UPLOAD_BYTES must be a positive integer.");
   process.exit(1);
 }
 
@@ -60,6 +65,15 @@ async function processQueue() {
       cwd: WORKSPACE_DIR, 
       env: { ...process.env, TERM: 'xterm-256color' },
     });
+    let finalized = false;
+
+    const finishProcessing = () => {
+      if (finalized) return false;
+      finalized = true;
+      processing = false;
+      processQueue();
+      return true;
+    };
 
     const timeout = setTimeout(() => {
       child.kill('SIGKILL');
@@ -68,8 +82,7 @@ async function processQueue() {
     child.on('error', (err) => {
       clearTimeout(timeout);
       console.error('Child process error:', err);
-      processing = false;
-      processQueue();
+      finishProcessing();
     });
 
     let fullResponse = '';
@@ -93,7 +106,7 @@ async function processQueue() {
               await api('editMessageText', { 
                 chat_id, 
                 message_id: status_id, 
-                text: fullResponse + ' █' 
+                text: `${fullResponse.slice(-3900)} █`
               });
             }
           } else if (event.type === 'tool_use' && !streamActive) {
@@ -114,16 +127,19 @@ async function processQueue() {
 
     child.on('close', async (code) => {
       clearTimeout(timeout);
-      if (status_id) await api('deleteMessage', { chat_id, message_id: status_id });
-      
-      if (fullResponse.trim()) {
-        const chunks = fullResponse.match(/[\s\S]{1,4000}/g) || [fullResponse];
-        for (const c of chunks) await api('sendMessage', { chat_id, text: c });
-      } else {
-        await api('sendMessage', { chat_id, text: code === 0 ? '✅ Done.' : `❌ Error (code ${code})` });
+      if (finalized) return;
+      try {
+        if (status_id) await api('deleteMessage', { chat_id, message_id: status_id });
+
+        if (fullResponse.trim()) {
+          const chunks = fullResponse.match(/[\s\S]{1,4000}/g) || [fullResponse];
+          for (const c of chunks) await api('sendMessage', { chat_id, text: c });
+        } else {
+          await api('sendMessage', { chat_id, text: code === 0 ? '✅ Done.' : `❌ Error (code ${code})` });
+        }
+      } finally {
+        finishProcessing();
       }
-      processing = false;
-      processQueue();
     });
 
   } catch (e) {
@@ -163,7 +179,15 @@ async function availableWorkspaceFilePath(fileName) {
     return initial;
   }
   const parsed = path.parse(initial);
-  return path.join(parsed.dir, `${parsed.name}_${Date.now()}${parsed.ext}`);
+  for (let attempt = 0; attempt < 1000; attempt += 1) {
+    const candidate = path.join(parsed.dir, `${parsed.name}_${Date.now()}_${attempt}${parsed.ext}`);
+    try {
+      await fs.access(candidate);
+    } catch {
+      return candidate;
+    }
+  }
+  throw new Error('Could not allocate a unique upload path');
 }
 
 async function handle(u) {
@@ -210,14 +234,14 @@ async function handle(u) {
         return api('sendMessage', { chat_id, text: `Upload rejected: file exceeds ${MAX_UPLOAD_BYTES} bytes.` });
       }
       await fs.writeFile(filePath, buffer, { flag: 'wx' });
-      fileNotification = `📥 File \`${fileName}\` saved to workspace. `;
+      fileNotification = `📥 File ${fileName} saved to workspace. `;
       console.log(`[FILE] Saved: ${fileName}`);
     }
   }
 
   const text = msg.text || msg.caption || "";
   if (fileNotification && !text) {
-    return api('sendMessage', { chat_id, text: fileNotification, parse_mode: 'Markdown' });
+    return api('sendMessage', { chat_id, text: fileNotification });
   }
   if (!text) return;
 
@@ -226,7 +250,7 @@ async function handle(u) {
     if (text === '/logs') {
       try {
         const logs = await readRecentLogs(BRIDGE_LOG, 20);
-        return api('sendMessage', { chat_id, text: `📝 Logs:\n\`\`\`\n${logs}\`\`\``, parse_mode: 'Markdown' });
+        return api('sendMessage', { chat_id, text: `📝 Logs:\n${logs}` });
       } catch (e) {
         return api('sendMessage', { chat_id, text: 'Error reading logs.' });
       }
@@ -248,14 +272,14 @@ async function handle(u) {
 
 async function poll() {
   let offset = 0;
-  console.log("Gemini Telegram Bridge Active (v7 - Multimodal)");
+  console.log("Gemini Telegram Bridge Active (v8 - Hardened)");
   while (true) {
     try {
       const res = await api('getUpdates', { offset, timeout: 30 });
       if (res?.ok) {
         for (const u of res.result) {
           offset = u.update_id + 1;
-          handle(u);
+          await handle(u).catch(err => console.error('Update handling error:', err));
         }
       } else { await new Promise(r => setTimeout(r, 5000)); }
     } catch (e) { await new Promise(r => setTimeout(r, 5000)); }
