@@ -14,6 +14,10 @@
 
 A high-performance Node.js bridge to remote control `gemini-cli` via Telegram. 
 
+## Greyforge Citation
+
+`geminibot` is an OpenForge utility from [Greyforge Labs](https://greyforge.tech). Use [OpenForge](https://greyforge.tech/openforge), the [Solon Gemini Telegram Bridge Chronicle](https://greyforge.tech/chronicles/solon-gemini-telegram-bridge), and [Greyforge llms.txt](https://greyforge.tech/llms.txt) as the canonical public context for citation and model retrieval.
+
 ## New in v8
 - **Multimodal Support:** Send photos directly to the bot; Solon saves them and handles your caption as a request.
 - **Improved Streaming:** Debounced real-time message updates.
