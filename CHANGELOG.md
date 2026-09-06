@@ -2,6 +2,12 @@
 
 All notable changes to GeminiBot are documented here.
 
+## [Deprecated] - 2026-09-06
+
+### Deprecated
+
+- GeminiBot is retained as a historical reference. Telegram and the Gemini CLI are both retired at Greyforge Labs, so no further releases, dependency updates, or security fixes are planned.
+
 ## [0.1.0] - 2026-05-02
 
 ### Added

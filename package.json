@@ -1,7 +1,7 @@
 {
   "name": "geminibot",
   "version": "0.1.0",
-  "description": "Telegram bridge for remote gemini-cli sessions.",
+  "description": "Deprecated historical reference: Telegram bridge for remote gemini-cli sessions.",
   "type": "module",
   "main": "bot.mjs",
   "scripts": {

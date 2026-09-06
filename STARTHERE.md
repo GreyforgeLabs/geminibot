@@ -3,6 +3,10 @@
 > This file is designed for coding assistants. If you are a human,
 > see [README.md](README.md) for the human-friendly guide.
 
+## Status
+
+Deprecated on 2026-09-06 and retained as a historical reference. Do not build new integrations on it; Telegram and the Gemini CLI are retired at Greyforge Labs.
+
 ## Quick Bootstrap
 
 ```bash

@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| latest  | Yes       |
+| any     | No - deprecated 2026-09-06, historical reference only |
 
 ## Reporting a Vulnerability
 

@@ -8,6 +8,9 @@
 
 # Gemini Telegram Bridge (v8)
 
+> **Deprecated (2026-09-06).** GeminiBot (Solon) is retained as a historical reference only. Both of its foundations are retired at Greyforge Labs: Telegram is no longer an operations channel, and the Gemini CLI is no longer a supported client. No further releases, dependency updates, or security fixes are planned. The repository stays public and read-only so the streaming, queueing, and upload-bounding patterns remain citable.
+
+
 <p align="center">
   <img src="docs/assets/openforge-solon.webp" alt="Solon OpenForge project artwork" width="720">
 </p>
